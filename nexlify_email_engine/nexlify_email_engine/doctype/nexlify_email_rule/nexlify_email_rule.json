@@ -19,10 +19,18 @@
   "trigger_event",
   "trigger_status_field",
   "trigger_status_value",
+  "trigger_date_field",
+  "trigger_days_offset",
+  "trigger_fixed_date",
+  "trigger_cron_expression",
   "manual_section",
   "button_label",
   "requires_extra_input",
   "extra_input_fields",
+  "active_window_section",
+  "trigger_active_from",
+  "column_break_active_window",
+  "trigger_active_to",
   "overrides_section",
   "override_from",
   "override_to",
@@ -100,7 +108,7 @@
    "fieldname": "trigger_event",
    "fieldtype": "Select",
    "label": "Trigger Event",
-   "options": "\nOn Submit\nOn Status Change\nOn Save (New)\nDaily"
+   "options": "\nOn Submit\nOn Status Change\nOn Save (New)\nOn Cancel\nDaily\nWeekly\nMonthly\nQuarterly\nYearly\nDays Before Date Field\nDays After Date Field\nFixed Date\nCustom Cron Expression"
   },
   {
    "default": "status",
@@ -114,6 +122,32 @@
    "fieldname": "trigger_status_value",
    "fieldtype": "Data",
    "label": "Trigger Status Value"
+  },
+  {
+   "depends_on": "eval:[\"Days Before Date Field\", \"Days After Date Field\"].includes(doc.trigger_event)",
+   "fieldname": "trigger_date_field",
+   "fieldtype": "Data",
+   "label": "Date Field",
+   "description": "Fieldname on the document holding the reference date (e.g. contract_end_date)."
+  },
+  {
+   "depends_on": "eval:[\"Days Before Date Field\", \"Days After Date Field\"].includes(doc.trigger_event)",
+   "fieldname": "trigger_days_offset",
+   "fieldtype": "Int",
+   "label": "Number of Days"
+  },
+  {
+   "depends_on": "eval:doc.trigger_event==\"Fixed Date\"",
+   "fieldname": "trigger_fixed_date",
+   "fieldtype": "Date",
+   "label": "Fixed Date"
+  },
+  {
+   "depends_on": "eval:doc.trigger_event==\"Custom Cron Expression\"",
+   "fieldname": "trigger_cron_expression",
+   "fieldtype": "Data",
+   "label": "Cron Expression",
+   "description": "Standard 5-field cron syntax (minute hour day month weekday), e.g. '0 9 * * 1-5' for weekdays at 9 AM."
   },
   {
    "collapsible": 1,
@@ -141,6 +175,27 @@
    "fieldtype": "Table",
    "label": "Extra Input Fields",
    "options": "Nexlify Extra Input Field"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "active_window_section",
+   "fieldtype": "Section Break",
+   "label": "Active Window (optional \u2014 leave blank to run indefinitely)",
+   "depends_on": "eval:[\"Daily\", \"Weekly\", \"Monthly\", \"Quarterly\", \"Yearly\", \"Custom Cron Expression\"].includes(doc.trigger_event)"
+  },
+  {
+   "fieldname": "trigger_active_from",
+   "fieldtype": "Date",
+   "label": "Active From"
+  },
+  {
+   "fieldname": "column_break_active_window",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "trigger_active_to",
+   "fieldtype": "Date",
+   "label": "Active To"
   },
   {
    "collapsible": 1,
