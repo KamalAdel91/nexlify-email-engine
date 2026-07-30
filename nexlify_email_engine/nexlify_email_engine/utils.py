@@ -213,7 +213,7 @@ def send_nexlify_email(
 		make(
 			doctype=context.get("doctype"),
 			name=context.get("docname"),
-			content=_wrap_html_email(rendered_message),
+			content=_wrap_html_email(rendered_message, subject=rendered_subject, sender=sender),
 			subject=rendered_subject,
 			sender=sender,
 			recipients=", ".join(recipients) if isinstance(recipients, list) else recipients,
@@ -500,32 +500,24 @@ def _is_within_active_window(rule):
 	return True
 
 
-def _wrap_html_email(html_content):
+def _wrap_html_email(html_content, subject=None, sender=None):
 	"""
-	Make email HTML render at a mobile-friendly width despite Frappe's
-	Communication/Email Queue processing stripping standalone <style> and
-	<meta> tags from the message (confirmed by inspecting sent Communication
-	content -- both a <head><meta viewport> wrapper and a bare <style> block
-	were silently dropped, leaving only inline attributes on existing tags).
-	Since only inline attributes survive, we switch the outer table's fixed
-	pixel width (width="600") to a fluid width="100%" while keeping
-	max-width:600px via inline style -- a well-known 'fluid hybrid' email
-	technique that needs no media query or viewport tag to work.
+	Wrap the message using Frappe's own get_formatted_html(), the exact
+	function Frappe's Compose Email / frappe.sendmail() use internally to
+	build the final HTML (confirmed by inspecting a real sent Email Queue
+	message: it includes a <meta viewport> and Frappe's standard email CSS,
+	which renders correctly at real size on mobile with no horizontal
+	scroll -- matching what our make()-based send was missing).
 	"""
 	if not html_content:
 		return html_content
 
-	# Avoid double-processing if this content was already adjusted.
-	if 'width="100%" class="nexlify-fluid-table"' in html_content:
-		return html_content
+	from frappe.email.email_body import get_formatted_html
 
-	# Replace the first fixed-pixel-width table (our templates' outer
-	# table) with a fluid one, keeping max-width via inline style so it
-	# still caps at 600px on desktop but shrinks to fit on mobile.
-	return html_content.replace(
-		'width="600" style="max-width: 600px;"',
-		'width="100%" class="nexlify-fluid-table" style="max-width: 600px;"',
-		1,
+	return get_formatted_html(
+		subject=subject or "",
+		message=html_content,
+		sender=sender,
 	)
 
 
