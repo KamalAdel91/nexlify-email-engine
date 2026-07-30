@@ -514,10 +514,17 @@ def _wrap_html_email(html_content, subject=None, sender=None):
 
 	from frappe.email.email_body import get_formatted_html
 
+	# raw_html=True skips Frappe's standard.html container template
+	# (body-table/email-container wrapper tables), which is what caused
+	# the earlier mismatch — with raw_html=True, get_formatted_html() just
+	# renders our own content directly, still wrapped in <html>/<head> with
+	# the viewport meta tag and Frappe's email CSS, exactly matching a
+	# manually-composed email sent via Frappe's Compose Email UI.
 	return get_formatted_html(
 		subject=subject or "",
 		message=html_content,
 		sender=sender,
+		raw_html=True,
 	)
 
 
