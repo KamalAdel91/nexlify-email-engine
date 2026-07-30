@@ -25,6 +25,7 @@
   "trigger_cron_expression",
   "manual_section",
   "button_label",
+  "show_manual_button",
   "requires_extra_input",
   "extra_input_fields",
   "active_window_section",
@@ -161,6 +162,13 @@
    "fieldname": "button_label",
    "fieldtype": "Data",
    "label": "Button Label"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.send_automatically==0",
+   "fieldname": "show_manual_button",
+   "fieldtype": "Check",
+   "label": "Show Manual Button on Document"
   },
   {
    "default": "0",

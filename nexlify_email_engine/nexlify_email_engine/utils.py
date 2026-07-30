@@ -74,7 +74,20 @@ def render_preview(template_name, context):
 
 
 @frappe.whitelist()
-def send_nexlify_email(template_name, context, override_to=None, rule=None, rule_overrides=None):
+def send_nexlify_email(
+	template_name,
+	context,
+	override_to=None,
+	rule=None,
+	rule_overrides=None,
+	override_message=None,
+	manual_attachments=None,
+	attach_print_pdf=False,
+	print_format=None,
+	send_after=None,
+	send_me_a_copy=False,
+	read_receipt=False,
+):
 	"""
 	Render and send an email using the given template and context.
 
@@ -109,6 +122,11 @@ def send_nexlify_email(template_name, context, override_to=None, rule=None, rule
 	rendered_to = frappe.render_template(template.default_to, jinja_context) if template.default_to else ""
 	rendered_cc = frappe.render_template(template.default_cc, jinja_context) if template.default_cc else ""
 	rendered_bcc = frappe.render_template(template.default_bcc, jinja_context) if template.default_bcc else ""
+
+	# A manually-edited message (from the "Send Email" dialog) takes
+	# priority over the template's own message when provided.
+	if override_message:
+		rendered_message = frappe.render_template(override_message, jinja_context)
 
 	# Apply rule-level overrides on top of the template defaults, if provided.
 	# Each override is rendered through Jinja too, so {{ doc.x }} works there as well.
@@ -155,6 +173,30 @@ def send_nexlify_email(template_name, context, override_to=None, rule=None, rule
 					message=f"Template '{template_name}' references missing file: {row.attachment}",
 				)
 
+	# Manual attachments passed from the "Send Email" dialog (existing File
+	# doc names, e.g. uploaded via the file picker).
+	if manual_attachments:
+		if isinstance(manual_attachments, str):
+			manual_attachments = json.loads(manual_attachments)
+		attachments.extend(manual_attachments)
+
+	# Optionally generate and attach a Print PDF of the reference document.
+	if attach_print_pdf and context.get("doctype") and context.get("docname"):
+		try:
+			pdf_content = frappe.get_print(
+				context["doctype"],
+				context["docname"],
+				print_format=print_format,
+				as_pdf=True,
+			)
+			pdf_filename = f"{context['docname']}.pdf"
+			attachments.append({"fname": pdf_filename, "fcontent": pdf_content})
+		except Exception as e:
+			frappe.log_error(
+				title=f"Nexlify Email Engine: Failed to generate Print PDF for {context.get('doctype')} {context.get('docname')}",
+				message=frappe.get_traceback(),
+			)
+
 	# Send the email via frappe's Communication layer — this creates a
 	# Communication doc linked to the reference document (so it shows up in
 	# that document's Timeline/Comments, exactly like any normal email sent
@@ -171,7 +213,7 @@ def send_nexlify_email(template_name, context, override_to=None, rule=None, rule
 		make(
 			doctype=context.get("doctype"),
 			name=context.get("docname"),
-			content=rendered_message,
+			content=_wrap_html_email(rendered_message),
 			subject=rendered_subject,
 			sender=sender,
 			recipients=", ".join(recipients) if isinstance(recipients, list) else recipients,
@@ -180,7 +222,12 @@ def send_nexlify_email(template_name, context, override_to=None, rule=None, rule
 			communication_medium="Email",
 			send_email=True,
 			attachments=attachments,
-			now=True,
+			# When send_after is set, make() queues the email for later instead
+			# of sending immediately — 'now=True' only applies to immediate sends.
+			now=True if not send_after else False,
+			send_after=send_after,
+			send_me_a_copy=1 if send_me_a_copy else 0,
+			read_receipt=1 if read_receipt else 0,
 		)
 		log.status = "Success"
 	except Exception as e:
@@ -224,6 +271,7 @@ def get_matching_rules(doctype, docname):
 			"reference_doctype": doctype,
 			"enabled": 1,
 			"send_automatically": 0,
+			"show_manual_button": 1,
 		},
 		order_by="priority asc",
 		pluck="name",
@@ -452,6 +500,35 @@ def _is_within_active_window(rule):
 	return True
 
 
+def _wrap_html_email(html_content):
+	"""
+	Wrap raw email HTML (a bare <table>, as our templates are written) in a
+	full HTML document with a mobile viewport meta tag. Without this, mobile
+	mail clients treat the fixed-width table as a wide desktop page and
+	zoom/scale it down instead of rendering it responsively.
+	"""
+	if not html_content:
+		return html_content
+
+	# Avoid double-wrapping if the content already has a full document
+	# structure (e.g. a template someone wrote by hand with <html> tags).
+	if "<html" in html_content.lower():
+		return html_content
+
+	return (
+		'<!DOCTYPE html>'
+		'<html>'
+		'<head>'
+		'<meta charset="utf-8">'
+		'<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+		'</head>'
+		'<body style="margin:0; padding:0;">'
+		+ html_content +
+		'</body>'
+		'</html>'
+	)
+
+
 def _evaluate_condition(rule, doc):
 	"""
 	Evaluate a rule's condition against a document.
@@ -475,6 +552,23 @@ def _evaluate_condition(rule, doc):
 			return False
 
 	return True
+
+@frappe.whitelist()
+def get_templates_for_doctype(doctype):
+	"""
+	Return all enabled Nexlify Email Templates whose reference_doctype
+	matches the given doctype, for use in the manual "Send Email" picker.
+	"""
+	if not frappe.has_permission(doctype, "read"):
+		frappe.throw(frappe._("You do not have permission to send emails for this document type."), frappe.PermissionError)
+
+	return frappe.get_all(
+		"Nexlify Email Template",
+		filters={"reference_doctype": doctype, "enabled": 1},
+		fields=["name", "template_name", "subject"],
+		order_by="template_name asc",
+	)
+
 
 @frappe.whitelist()
 def get_doctypes_with_rules():

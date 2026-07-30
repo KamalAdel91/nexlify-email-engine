@@ -33,6 +33,7 @@ app_include_css = [
 app_include_js = [
     "/assets/nexlify_email_engine/js/email_preview.js",
     "/assets/nexlify_email_engine/js/global_email_button.js",
+    "/assets/nexlify_email_engine/js/manual_send_button.js",
 ]
 
 # include js, css files in header of web template
