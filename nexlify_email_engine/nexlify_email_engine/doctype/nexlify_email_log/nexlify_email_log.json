@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "template",
+  "rule",
   "reference_doctype",
   "reference_name",
   "status",
@@ -20,6 +21,13 @@
    "in_list_view": 1,
    "label": "Template",
    "options": "Nexlify Email Template"
+  },
+  {
+   "fieldname": "rule",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Rule",
+   "options": "Nexlify Email Rule"
   },
   {
    "fieldname": "reference_doctype",

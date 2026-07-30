@@ -26,7 +26,14 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/nexlify_email_engine/css/nexlify_email_engine.css"
-app_include_js = "/assets/nexlify_email_engine/js/email_preview.js"
+app_include_css = [
+    "/assets/nexlify_email_engine/css/tinymce_frappe_theme.css",
+]
+
+app_include_js = [
+    "/assets/nexlify_email_engine/js/email_preview.js",
+    "/assets/nexlify_email_engine/js/global_email_button.js",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/nexlify_email_engine/css/nexlify_email_engine.css"
@@ -138,13 +145,12 @@ app_include_js = "/assets/nexlify_email_engine/js/email_preview.js"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+    "*": {
+        "on_submit": "nexlify_email_engine.nexlify_email_engine.utils.check_and_run_automatic_rules",
+        "on_update": "nexlify_email_engine.nexlify_email_engine.utils.check_and_run_automatic_rules",
+    }
+}
 
 # Scheduled Tasks
 # ---------------
@@ -152,7 +158,10 @@ app_include_js = "/assets/nexlify_email_engine/js/email_preview.js"
 scheduler_events = {
 	"cron": {
 		"* * * * *": ["frappe.email.queue.flush"]
-	}
+	},
+	"daily": [
+		"nexlify_email_engine.nexlify_email_engine.utils.run_daily_email_rules"
+	]
 }
 
 # scheduler_events = {

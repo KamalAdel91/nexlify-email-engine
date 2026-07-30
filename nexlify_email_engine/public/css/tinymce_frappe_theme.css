@@ -1,0 +1,45 @@
+/* Nexlify Email Engine — TinyMCE styled to match Frappe's design language */
+
+.tox-tinymce {
+	border: 1px solid var(--border-color, #d1d8dd) !important;
+	border-radius: var(--border-radius-md, 8px) !important;
+	font-family: var(--font-stack, -apple-system, "Inter", sans-serif) !important;
+}
+
+.tox .tox-toolbar,
+.tox .tox-toolbar__primary {
+	background: var(--fg-color, #f7fafc) !important;
+	border-bottom: 1px solid var(--border-color, #d1d8dd) !important;
+}
+
+.tox .tox-toolbar__group {
+	border: none !important;
+	padding: 0 4px !important;
+}
+
+.tox .tox-tbtn {
+	width: 28px !important;
+	height: 28px !important;
+	margin: 1px !important;
+}
+
+.tox .tox-tbtn svg {
+	width: 16px !important;
+	height: 16px !important;
+}
+
+.tox .tox-tbtn:hover {
+	background: var(--control-bg, #eef1f4) !important;
+	border-radius: var(--border-radius-sm, 4px) !important;
+}
+
+.tox .tox-edit-area__iframe {
+	background: #ffffff !important;
+}
+
+.tox-statusbar {
+	border-top: 1px solid var(--border-color, #d1d8dd) !important;
+	background: var(--fg-color, #f7fafc) !important;
+	font-size: 11px !important;
+	color: var(--text-muted, #8d99a6) !important;
+}

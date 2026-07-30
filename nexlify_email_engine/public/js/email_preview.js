@@ -157,6 +157,9 @@ nexlify_email.preview_and_send = function (template_name, context, options) {
                         }
                     }
                 },
+                error: function () {
+                    frappe.msgprint(__("Could not load email accounts. Please check your connection."));
+                },
             });
 
             // --- Render initial preview ---
@@ -173,13 +176,16 @@ nexlify_email.preview_and_send = function (template_name, context, options) {
                 doc.close();
             }
 
-            render_preview_iframe(preview.message);
 
             // --- Refresh Preview button ---
             dialog.get_field("refresh_preview").df.onclick = function () {
                 const html_val = dialog.get_value("raw_html");
                 render_preview_iframe(html_val);
             };
+
+            dialog.$wrapper.on("shown.bs.modal", function () {
+                render_preview_iframe(preview.message);
+            });
 
             dialog.show();
         },
