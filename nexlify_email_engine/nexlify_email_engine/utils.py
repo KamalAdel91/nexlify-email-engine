@@ -502,31 +502,38 @@ def _is_within_active_window(rule):
 
 def _wrap_html_email(html_content):
 	"""
-	Wrap raw email HTML (a bare <table>, as our templates are written) in a
-	full HTML document with a mobile viewport meta tag. Without this, mobile
-	mail clients treat the fixed-width table as a wide desktop page and
-	zoom/scale it down instead of rendering it responsively.
+	Prepend responsive-friendly markup to raw email HTML (our templates are
+	written as a bare <table>). We deliberately do NOT wrap with a full
+	<html>/<head>/<body> document: Frappe's Communication/Email Queue
+	processing strips <html>/<head>/<body> tags before storing/sending the
+	message, which silently drops any <meta viewport> tag placed inside a
+	<head> — confirmed by inspecting a sent Communication's stored content.
+	Instead we place a <style> block with a responsive media query directly
+	in the body-level content, which mail clients accept anywhere, and we
+	relax the table's fixed pixel width so it can shrink on narrow screens.
 	"""
 	if not html_content:
 		return html_content
 
-	# Avoid double-wrapping if the content already has a full document
-	# structure (e.g. a template someone wrote by hand with <html> tags).
-	if "<html" in html_content.lower():
+	# Avoid double-processing if this content was already wrapped.
+	if "nexlify-responsive-email" in html_content:
 		return html_content
 
-	return (
-		'<!DOCTYPE html>'
-		'<html>'
-		'<head>'
-		'<meta charset="utf-8">'
-		'<meta name="viewport" content="width=device-width, initial-scale=1.0">'
-		'</head>'
-		'<body style="margin:0; padding:0;">'
-		+ html_content +
-		'</body>'
-		'</html>'
+	responsive_style = (
+		'<style type="text/css">'
+		"@media only screen and (max-width: 600px) {"
+		".nexlify-responsive-email { width: 100% !important; max-width: 100% !important; }"
+		"}"
+		'</style>'
 	)
+
+	# Tag the outermost table so the media query above can target it, and
+	# relax any hard-coded pixel width to a max-width so it can shrink.
+	tagged_content = html_content.replace(
+		'width="600"', 'width="600" class="nexlify-responsive-email"', 1
+	)
+
+	return responsive_style + tagged_content
 
 
 def _evaluate_condition(rule, doc):

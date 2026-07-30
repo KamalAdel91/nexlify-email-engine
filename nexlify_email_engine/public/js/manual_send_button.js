@@ -129,6 +129,16 @@ function show_send_dialog(frm, templates) {
 			const values = d.get_values();
 			if (!values) return;
 
+			// Disable the button and show a loading state immediately so the
+			// user gets feedback that the click registered — without this,
+			// slow requests look like the button did nothing, and people
+			// click Send repeatedly, sending the email multiple times.
+			d.get_primary_btn().prop("disabled", true).text(__("Sending..."));
+
+			function reset_button() {
+				d.get_primary_btn().prop("disabled", false).text(__("Send"));
+			}
+
 			frappe.call({
 				method: "nexlify_email_engine.nexlify_email_engine.utils.send_nexlify_email",
 				args: {
@@ -145,6 +155,7 @@ function show_send_dialog(frm, templates) {
 				},
 				callback: function (resp) {
 					if (resp.exc) {
+						reset_button();
 						frappe.msgprint(__("Failed to send email: {0}", [resp.exc]));
 						return;
 					}
@@ -159,8 +170,13 @@ function show_send_dialog(frm, templates) {
 						d.hide();
 						frm.reload_doc();
 					} else {
+						reset_button();
 						frappe.msgprint(__("Failed to send email. Check Nexlify Email Log: {0}", [result.log]));
 					}
+				},
+				error: function () {
+					reset_button();
+					frappe.msgprint(__("Failed to send email. Please check the error log and try again."));
 				},
 			});
 		},
