@@ -74,7 +74,7 @@ def render_preview(template_name, context):
 
 
 @frappe.whitelist()
-def send_nexlify_email(template_name, context, override_to=None, rule=None):
+def send_nexlify_email(template_name, context, override_to=None, rule=None, rule_overrides=None):
 	"""
 	Render and send an email using the given template and context.
 
@@ -110,13 +110,27 @@ def send_nexlify_email(template_name, context, override_to=None, rule=None):
 	rendered_cc = frappe.render_template(template.default_cc, jinja_context) if template.default_cc else ""
 	rendered_bcc = frappe.render_template(template.default_bcc, jinja_context) if template.default_bcc else ""
 
+	# Apply rule-level overrides on top of the template defaults, if provided.
+	# Each override is rendered through Jinja too, so {{ doc.x }} works there as well.
+	if rule_overrides:
+		if rule_overrides.get("override_from"):
+			template.default_from = rule_overrides["override_from"]
+		if rule_overrides.get("override_to"):
+			rendered_to = frappe.render_template(rule_overrides["override_to"], jinja_context)
+		if rule_overrides.get("override_cc"):
+			rendered_cc = frappe.render_template(rule_overrides["override_cc"], jinja_context)
+		if rule_overrides.get("override_bcc"):
+			rendered_bcc = frappe.render_template(rule_overrides["override_bcc"], jinja_context)
+		if rule_overrides.get("override_subject"):
+			rendered_subject = frappe.render_template(rule_overrides["override_subject"], jinja_context)
+
 	# Build recipients
 	recipients = override_to if override_to else _resolve_recipients(rendered_to)
 	if isinstance(recipients, str):
 		recipients = [r.strip() for r in recipients.split(",") if r.strip()]
 
-	cc_list = [r.strip() for r in rendered_cc.split(",") if r.strip()] if rendered_cc else None
-	bcc_list = [r.strip() for r in rendered_bcc.split(",") if r.strip()] if rendered_bcc else None
+	cc_list = _resolve_recipients(rendered_cc) or None
+	bcc_list = _resolve_recipients(rendered_bcc) or None
 
 	# Determine sender
 	sender = None
@@ -124,20 +138,27 @@ def send_nexlify_email(template_name, context, override_to=None, rule=None):
 		email_account = frappe.get_doc("Email Account", template.default_from)
 		sender = email_account.email_id
 
-	# Build attachments from static_attachments child table
+	# Build attachments from static_attachments child table.
+	# frappe.core.doctype.communication.email.make() expects attachments as
+	# either File doc names (strings) or {"fname": ..., "fcontent": ...} dicts —
+	# NOT the {"fid"/"file_url"} shape frappe.sendmail() used. We resolve each
+	# static attachment to its File doc name.
 	attachments = []
 	for row in template.static_attachments:
 		if row.attachment:
 			try:
 				file_data = frappe.get_doc("File", {"file_url": row.attachment})
-				attachments.append({
-					"fid": file_data.name,
-					"file_url": row.attachment,
-				})
+				attachments.append(file_data.name)
 			except frappe.DoesNotExistError:
-				attachments.append({"file_url": row.attachment})
+				frappe.log_error(
+					title="Nexlify Email Engine: Static attachment file not found",
+					message=f"Template '{template_name}' references missing file: {row.attachment}",
+				)
 
-	# Send the email
+	# Send the email via frappe's Communication layer — this creates a
+	# Communication doc linked to the reference document (so it shows up in
+	# that document's Timeline/Comments, exactly like any normal email sent
+	# from the UI), and it queues the actual send through Email Queue itself.
 	log = frappe.new_doc("Nexlify Email Log")
 	log.template = template_name
 	log.rule = rule or ""
@@ -145,13 +166,19 @@ def send_nexlify_email(template_name, context, override_to=None, rule=None):
 	log.reference_name = context.get("docname", "")
 
 	try:
-		frappe.sendmail(
-			recipients=recipients,
-			cc=cc_list,
-			bcc=bcc_list,
-			sender=sender,
+		from frappe.core.doctype.communication.email import make
+
+		make(
+			doctype=context.get("doctype"),
+			name=context.get("docname"),
+			content=rendered_message,
 			subject=rendered_subject,
-			message=rendered_message,
+			sender=sender,
+			recipients=", ".join(recipients) if isinstance(recipients, list) else recipients,
+			cc=", ".join(cc_list) if cc_list else None,
+			bcc=", ".join(bcc_list) if bcc_list else None,
+			communication_medium="Email",
+			send_email=True,
 			attachments=attachments,
 			now=True,
 		)
@@ -234,6 +261,13 @@ def get_matching_rules(doctype, docname):
 			"requires_extra_input": rule.requires_extra_input,
 			"extra_input_fields": extra_fields,
 			"actions": actions,
+			"overrides": {
+				"override_from": rule.override_from,
+				"override_to": rule.override_to,
+				"override_cc": rule.override_cc,
+				"override_bcc": rule.override_bcc,
+				"override_subject": rule.override_subject,
+			},
 		})
 
 	return matching
@@ -274,6 +308,13 @@ def execute_rule_actions(rule_name, doctype, docname, extra_context=None):
 				template_name=action.email_template,
 				context=context,
 				rule=rule_name,
+				rule_overrides={
+				"override_from": rule.override_from,
+				"override_to": rule.override_to,
+				"override_cc": rule.override_cc,
+				"override_bcc": rule.override_bcc,
+				"override_subject": rule.override_subject,
+				},
 			)
 			results.append({
 				"action_type": action.action_type,
@@ -376,6 +417,13 @@ def check_and_run_automatic_rules(doc, method):
 						template_name=action.email_template,
 						context=context,
 						rule=rule_name,
+						rule_overrides={
+				"override_from": rule.override_from,
+				"override_to": rule.override_to,
+				"override_cc": rule.override_cc,
+				"override_bcc": rule.override_bcc,
+				"override_subject": rule.override_subject,
+						},
 					)
 				except Exception as e:
 					frappe.log_error(
@@ -522,6 +570,13 @@ def run_daily_email_rules():
 							template_name=action.email_template,
 							context=context,
 							rule=rule_name,
+							rule_overrides={
+				"override_from": rule.override_from,
+				"override_to": rule.override_to,
+				"override_cc": rule.override_cc,
+				"override_bcc": rule.override_bcc,
+				"override_subject": rule.override_subject,
+							},
 						)
 					except Exception as e:
 						frappe.log_error(

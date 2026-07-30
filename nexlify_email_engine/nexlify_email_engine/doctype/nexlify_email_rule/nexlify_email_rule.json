@@ -23,6 +23,13 @@
   "button_label",
   "requires_extra_input",
   "extra_input_fields",
+  "overrides_section",
+  "override_from",
+  "override_to",
+  "column_break_overrides",
+  "override_cc",
+  "override_bcc",
+  "override_subject",
   "actions_section",
   "actions"
  ],
@@ -134,6 +141,42 @@
    "fieldtype": "Table",
    "label": "Extra Input Fields",
    "options": "Nexlify Extra Input Field"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "overrides_section",
+   "fieldtype": "Section Break",
+   "label": "Overrides (optional \u2014 leave blank to use Template defaults)"
+  },
+  {
+   "fieldname": "override_from",
+   "fieldtype": "Link",
+   "label": "Override From",
+   "options": "Email Account"
+  },
+  {
+   "fieldname": "override_to",
+   "fieldtype": "Small Text",
+   "label": "Override To"
+  },
+  {
+   "fieldname": "column_break_overrides",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "override_cc",
+   "fieldtype": "Small Text",
+   "label": "Override CC"
+  },
+  {
+   "fieldname": "override_bcc",
+   "fieldtype": "Small Text",
+   "label": "Override BCC"
+  },
+  {
+   "fieldname": "override_subject",
+   "fieldtype": "Data",
+   "label": "Override Subject"
   },
   {
    "fieldname": "actions_section",
