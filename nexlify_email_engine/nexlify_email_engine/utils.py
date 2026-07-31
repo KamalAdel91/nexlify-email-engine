@@ -512,20 +512,32 @@ def _wrap_html_email(html_content, subject=None, sender=None):
 	if not html_content:
 		return html_content
 
-	from frappe.email.email_body import get_formatted_html
+	from frappe.email.email_body import inline_style_in_html
 
-	# raw_html=True skips Frappe's standard.html container template
-	# (body-table/email-container wrapper tables), which is what caused
-	# the earlier mismatch — with raw_html=True, get_formatted_html() just
-	# renders our own content directly, still wrapped in <html>/<head> with
-	# the viewport meta tag and Frappe's email CSS, exactly matching a
-	# manually-composed email sent via Frappe's Compose Email UI.
-	return get_formatted_html(
-		subject=subject or "",
-		message=html_content,
-		sender=sender,
-		raw_html=True,
+	# Our html_content has already been Jinja-rendered (doc.x values are
+	# real data, not template syntax) BEFORE this function is called, so we
+	# must NOT pass it through get_formatted_html(raw_html=True), which
+	# internally calls frappe.render_template() again and throws
+	# UndefinedError('doc' is undefined) since no doc/jinja context is
+	# available at that point (confirmed via bench console reproduction).
+	# Instead we manually build the same <html><head><meta viewport> wrapper
+	# Frappe's standard.html uses, then call inline_style_in_html() directly
+	# -- the same final step get_formatted_html() itself calls -- to inline
+	# Frappe's responsive email CSS without any extra Jinja rendering.
+	title = frappe.utils.escape_html(subject or "")
+	wrapped = (
+		'<html><head><meta name="viewport" content="width=device-width">'
+		"<title>" + title + "</title></head><body>" + html_content + "</body></html>"
 	)
+
+	try:
+		return inline_style_in_html(wrapped, add_css=True)
+	except Exception:
+		frappe.log_error(
+			title="Nexlify Email Engine: Failed to inline email CSS, sending unstyled",
+			message=frappe.get_traceback(),
+		)
+		return wrapped
 
 
 def _evaluate_condition(rule, doc):
