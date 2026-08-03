@@ -107,11 +107,6 @@ def send_nexlify_email(
 	if isinstance(context, str):
 		context = json.loads(context)
 
-	frappe.log_error(
-		title="Nexlify DEBUG: send_nexlify_email inputs",
-		message=f"attach_print_pdf={attach_print_pdf!r} manual_attachments={manual_attachments!r} print_format={print_format!r}",
-	)
-
 	if template_name:
 		template = frappe.get_doc("Nexlify Email Template", template_name)
 	else:
@@ -226,7 +221,7 @@ def send_nexlify_email(
 		attachments.extend(manual_attachments)
 
 	# Optionally generate and attach a Print PDF of the reference document.
-	if attach_print_pdf and context.get("doctype") and context.get("docname"):
+	if cint(attach_print_pdf) and context.get("doctype") and context.get("docname"):
 		try:
 			pdf_content = frappe.get_print(
 				context["doctype"],
