@@ -49,7 +49,6 @@ function show_send_dialog(frm, templates) {
 				fieldname: "template",
 				label: __("Choose Template"),
 				options: template_options.map(function (t) { return t.value; }),
-				reqd: 1,
 			},
 			{ fieldtype: "Section Break" },
 			{
@@ -142,9 +141,13 @@ function show_send_dialog(frm, templates) {
 			frappe.call({
 				method: "nexlify_email_engine.nexlify_email_engine.utils.send_nexlify_email",
 				args: {
-					template_name: values.template,
+					template_name: values.template || null,
 					context: JSON.stringify({ doctype: frm.doctype, docname: frm.doc.name }),
 					override_to: values.to,
+					override_cc: values.cc || "",
+					override_bcc: values.bcc || "",
+					override_subject: values.subject || "",
+					override_from: values.send_from || null,
 					override_message: values.message,
 					manual_attachments: JSON.stringify(d.__nexlify_manual_attachments || []),
 					attach_print_pdf: values.attach_print_pdf ? 1 : 0,

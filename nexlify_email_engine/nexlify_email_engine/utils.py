@@ -75,9 +75,13 @@ def render_preview(template_name, context):
 
 @frappe.whitelist()
 def send_nexlify_email(
-	template_name,
-	context,
+	template_name=None,
+	context=None,
 	override_to=None,
+	override_cc=None,
+	override_bcc=None,
+	override_subject=None,
+	override_from=None,
 	rule=None,
 	rule_overrides=None,
 	override_message=None,
@@ -103,7 +107,28 @@ def send_nexlify_email(
 	if isinstance(context, str):
 		context = json.loads(context)
 
-	template = frappe.get_doc("Nexlify Email Template", template_name)
+	frappe.log_error(
+		title="Nexlify DEBUG: send_nexlify_email inputs",
+		message=f"attach_print_pdf={attach_print_pdf!r} manual_attachments={manual_attachments!r} print_format={print_format!r}",
+	)
+
+	if template_name:
+		template = frappe.get_doc("Nexlify Email Template", template_name)
+	else:
+		# No template selected — the user is composing a plain email from
+		# scratch via the "Send Email" dialog. Use a stand-in object exposing
+		# the same attributes as a real template, all empty, so the rest of
+		# this function (which reads template.subject, template.message, etc.)
+		# works completely unchanged.
+		template = frappe._dict({
+			"subject": "",
+			"message": "",
+			"default_to": "",
+			"default_cc": "",
+			"default_bcc": "",
+			"default_from": None,
+			"static_attachments": [],
+		})
 
 	# Build Jinja context
 	jinja_context = {}
@@ -128,6 +153,11 @@ def send_nexlify_email(
 	if override_message:
 		rendered_message = frappe.render_template(override_message, jinja_context)
 
+	# A manually-edited subject (from the "Send Email" dialog) takes
+	# priority over the template's own subject when provided.
+	if override_subject:
+		rendered_subject = frappe.render_template(override_subject, jinja_context)
+
 	# Apply rule-level overrides on top of the template defaults, if provided.
 	# Each override is rendered through Jinja too, so {{ doc.x }} works there as well.
 	if rule_overrides:
@@ -147,13 +177,28 @@ def send_nexlify_email(
 	if isinstance(recipients, str):
 		recipients = [r.strip() for r in recipients.split(",") if r.strip()]
 
-	cc_list = _resolve_recipients(rendered_cc) or None
-	bcc_list = _resolve_recipients(rendered_bcc) or None
+	# override_cc/override_bcc come from the manual "Send Email" dialog and
+	# take priority over template/rule values, same as override_to already
+	# does. An empty string means "explicitly cleared" and must result in no
+	# CC/BCC, so we check for None specifically (not falsy) to distinguish
+	# "field left untouched" from "field cleared by the user".
+	if override_cc is not None:
+		cc_list = _resolve_recipients(override_cc) or None
+	else:
+		cc_list = _resolve_recipients(rendered_cc) or None
+
+	if override_bcc is not None:
+		bcc_list = _resolve_recipients(override_bcc) or None
+	else:
+		bcc_list = _resolve_recipients(rendered_bcc) or None
 
 	# Determine sender
+	# A manually-chosen sender (from the "Send Email" dialog's Send From
+	# field) takes priority over the template's own default_from.
 	sender = None
-	if template.default_from:
-		email_account = frappe.get_doc("Email Account", template.default_from)
+	from_account = override_from or template.default_from
+	if from_account:
+		email_account = frappe.get_doc("Email Account", from_account)
 		sender = email_account.email_id
 
 	# Build attachments from static_attachments child table.
