@@ -1,5 +1,6 @@
 import frappe
 import json
+from frappe.utils import cint
 
 
 @frappe.whitelist()
