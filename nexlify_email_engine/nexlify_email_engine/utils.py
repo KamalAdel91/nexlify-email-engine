@@ -267,8 +267,8 @@ def send_nexlify_email(
 			# of sending immediately — 'now=True' only applies to immediate sends.
 			now=True if not send_after else False,
 			send_after=send_after,
-			send_me_a_copy=1 if send_me_a_copy else 0,
-			read_receipt=1 if read_receipt else 0,
+			send_me_a_copy=cint(send_me_a_copy),
+			read_receipt=cint(read_receipt),
 		)
 		log.status = "Success"
 	except Exception as e:
