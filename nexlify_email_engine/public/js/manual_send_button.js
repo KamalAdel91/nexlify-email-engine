@@ -16,9 +16,17 @@ function add_manual_send_button(frm) {
 	if (frm.__nexlify_manual_send_added) return;
 	frm.__nexlify_manual_send_added = true;
 
-	frm.add_custom_button(__("Send Email"), function () {
+	const $btn = frm.add_custom_button(__("Send Email"), function () {
 		open_manual_send_dialog(frm);
 	});
+	// Style the button black to stand out as the primary send action.
+	if ($btn) {
+		$btn.removeClass("btn-default").css({
+			"background-color": "#000000",
+			"color": "#ffffff",
+			"border-color": "#000000",
+		});
+	}
 }
 
 function open_manual_send_dialog(frm) {
