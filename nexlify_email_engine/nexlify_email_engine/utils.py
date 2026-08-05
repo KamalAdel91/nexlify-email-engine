@@ -923,6 +923,107 @@ def run_cron_email_rules():
 						)
 
 
+def _is_due_for_custom_interval(rule):
+	"""
+	For trigger_event == "Custom Interval": check whether enough time has
+	passed since this rule's last successful send to fire again, based on
+	repeat_every (an integer) and repeat_unit (Day/Week/Month/Quarter/Year).
+	If the rule has never sent successfully before, it is considered due.
+	"""
+	if not rule.repeat_every or rule.repeat_every < 1:
+		return False
+
+	last_log = frappe.get_all(
+		"Nexlify Email Log",
+		filters={"rule": rule.name, "status": "Success"},
+		fields=["sent_at"],
+		order_by="sent_at desc",
+		limit=1,
+	)
+
+	if not last_log:
+		return True
+
+	last_sent = frappe.utils.getdate(last_log[0]["sent_at"])
+	today = frappe.utils.getdate()
+	unit = (rule.repeat_unit or "Day").lower()
+
+	if unit == "day":
+		next_due = frappe.utils.add_days(last_sent, rule.repeat_every)
+	elif unit == "week":
+		next_due = frappe.utils.add_days(last_sent, rule.repeat_every * 7)
+	elif unit == "month":
+		next_due = frappe.utils.add_months(last_sent, rule.repeat_every)
+	elif unit == "quarter":
+		next_due = frappe.utils.add_months(last_sent, rule.repeat_every * 3)
+	elif unit == "year":
+		next_due = frappe.utils.add_months(last_sent, rule.repeat_every * 12)
+	else:
+		return False
+
+	return today >= next_due
+
+
+def run_custom_interval_email_rules():
+	"""
+	Scheduled daily task (called from run_daily_email_rules). Finds all
+	enabled automatic rules with trigger_event = "Custom Interval", checks
+	each one's due-date via _is_due_for_custom_interval, and sends for
+	matching documents — same lightweight-condition + active-window pattern
+	as the other periodic triggers.
+	"""
+	rules = frappe.get_all(
+		"Nexlify Email Rule",
+		filters={"enabled": 1, "send_automatically": 1, "trigger_event": "Custom Interval"},
+		order_by="priority asc",
+		pluck="name",
+	)
+
+	for rule_name in rules:
+		rule = frappe.get_doc("Nexlify Email Rule", rule_name)
+
+		if not _is_within_active_window(rule):
+			continue
+
+		if not _is_due_for_custom_interval(rule):
+			continue
+
+		doc_rows = frappe.get_all(rule.reference_doctype, fields=["*"], limit_page_length=0)
+
+		for row in doc_rows:
+			doc_wrapper = frappe._dict(row)
+
+			if not _evaluate_condition(rule, doc_wrapper):
+				continue
+
+			docname = row["name"]
+
+			if _already_sent_today(rule_name, rule.reference_doctype, docname):
+				continue
+
+			context = {"doctype": rule.reference_doctype, "docname": docname}
+			for action in rule.actions:
+				if action.action_type == "Send Email" and action.email_template:
+					try:
+						send_nexlify_email(
+							template_name=action.email_template,
+							context=context,
+							rule=rule_name,
+							rule_overrides={
+								"override_from": rule.override_from,
+								"override_to": rule.override_to,
+								"override_cc": rule.override_cc,
+								"override_bcc": rule.override_bcc,
+								"override_subject": rule.override_subject,
+							},
+						)
+					except Exception as e:
+						frappe.log_error(
+							title=f"Nexlify Email Engine: Custom Interval rule '{rule_name}' action failed",
+							message=frappe.get_traceback(),
+						)
+
+
 def run_daily_email_rules():
 	"""
 	Scheduled daily task. Finds all enabled automatic rules with
@@ -933,6 +1034,7 @@ def run_daily_email_rules():
 	need to be checked once per day.
 	"""
 	run_date_based_email_rules()
+	run_custom_interval_email_rules()
 
 	rules = frappe.get_all(
 		"Nexlify Email Rule",

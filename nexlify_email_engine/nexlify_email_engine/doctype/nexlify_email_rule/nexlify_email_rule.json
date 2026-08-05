@@ -22,6 +22,8 @@
   "trigger_date_field",
   "trigger_days_offset",
   "trigger_fixed_date",
+  "repeat_every",
+  "repeat_unit",
   "trigger_cron_expression",
   "manual_section",
   "button_label",
@@ -109,7 +111,7 @@
    "fieldname": "trigger_event",
    "fieldtype": "Select",
    "label": "Trigger Event",
-   "options": "\nOn Submit\nOn Status Change\nOn Save (New)\nOn Cancel\nDaily\nWeekly\nMonthly\nQuarterly\nYearly\nDays Before Date Field\nDays After Date Field\nFixed Date\nCustom Cron Expression"
+   "options": "\nOn Submit\nOn Status Change\nOn Save (New)\nOn Cancel\nDaily\nWeekly\nMonthly\nQuarterly\nYearly\nDays Before Date Field\nDays After Date Field\nFixed Date\nCustom Cron Expression\nCustom Interval"
   },
   {
    "default": "status",
@@ -142,6 +144,21 @@
    "fieldname": "trigger_fixed_date",
    "fieldtype": "Date",
    "label": "Fixed Date"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.trigger_event==\"Custom Interval\"",
+   "fieldname": "repeat_every",
+   "fieldtype": "Int",
+   "label": "Repeat Every"
+  },
+  {
+   "default": "Day",
+   "depends_on": "eval:doc.trigger_event==\"Custom Interval\"",
+   "fieldname": "repeat_unit",
+   "fieldtype": "Select",
+   "label": "Repeat Unit",
+   "options": "Day\nWeek\nMonth\nQuarter\nYear"
   },
   {
    "depends_on": "eval:doc.trigger_event==\"Custom Cron Expression\"",
