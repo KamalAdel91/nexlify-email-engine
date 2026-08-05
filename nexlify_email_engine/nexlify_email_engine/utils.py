@@ -695,6 +695,7 @@ def test_rule_condition(rule_name, docname):
 	return result
 
 
+@frappe.whitelist()
 def get_doctypes_with_rules():
 	doctypes = frappe.get_all(
 		"Nexlify Email Rule",
