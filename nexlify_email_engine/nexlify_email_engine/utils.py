@@ -40,9 +40,11 @@ def render_preview(template_name, context):
 	try:
 		rendered_subject = frappe.render_template(template.subject, jinja_context) if template.subject else ""
 		rendered_message = frappe.render_template(template.message, jinja_context) if template.message else ""
-		rendered_to = frappe.render_template(template.default_to, jinja_context) if template.default_to else ""
-		rendered_cc = frappe.render_template(template.default_cc, jinja_context) if template.default_cc else ""
-		rendered_bcc = frappe.render_template(template.default_bcc, jinja_context) if template.default_bcc else ""
+		# Templates no longer carry recipient fields — To/CC/BCC come from
+		# the Nexlify Email Rule (override fields) or manual entry only.
+		rendered_to = ""
+		rendered_cc = ""
+		rendered_bcc = ""
 	except Exception as e:
 		frappe.msgprint(
 			"Could not fully render preview - no sample document was available, "
@@ -51,9 +53,9 @@ def render_preview(template_name, context):
 		)
 		rendered_subject = template.subject or ""
 		rendered_message = template.message or ""
-		rendered_to = template.default_to or ""
-		rendered_cc = template.default_cc or ""
-		rendered_bcc = template.default_bcc or ""
+		rendered_to = ""
+		rendered_cc = ""
+		rendered_bcc = ""
 
 	attachment_list = []
 	for row in template.static_attachments:
@@ -140,9 +142,12 @@ def send_nexlify_email(
 	# Render fields
 	rendered_subject = frappe.render_template(template.subject, jinja_context) if template.subject else ""
 	rendered_message = frappe.render_template(template.message, jinja_context) if template.message else ""
-	rendered_to = frappe.render_template(template.default_to, jinja_context) if template.default_to else ""
-	rendered_cc = frappe.render_template(template.default_cc, jinja_context) if template.default_cc else ""
-	rendered_bcc = frappe.render_template(template.default_bcc, jinja_context) if template.default_bcc else ""
+	# Templates no longer carry recipient fields — To/CC/BCC come from
+	# the Nexlify Email Rule (rule_overrides) or manual entry (override_to/
+	# override_cc/override_bcc) only.
+	rendered_to = ""
+	rendered_cc = ""
+	rendered_bcc = ""
 
 	# A manually-edited message (from the "Send Email" dialog) takes
 	# priority over the template's own message when provided.
@@ -170,6 +175,9 @@ def send_nexlify_email(
 
 	# Build recipients
 	recipients = override_to if override_to else _resolve_recipients(rendered_to)
+
+	if not recipients:
+		frappe.throw(frappe._("At least one recipient (To) is required to send this email."), frappe.ValidationError)
 	if isinstance(recipients, str):
 		recipients = [r.strip() for r in recipients.split(",") if r.strip()]
 
@@ -193,6 +201,9 @@ def send_nexlify_email(
 	# field) takes priority over the template's own default_from.
 	sender = None
 	from_account = override_from or template.default_from
+
+	if not from_account:
+		frappe.throw(frappe._("A sender (From) is required to send this email."), frappe.ValidationError)
 	if from_account:
 		email_account = frappe.get_doc("Email Account", from_account)
 		sender = email_account.email_id
@@ -271,6 +282,21 @@ def send_nexlify_email(
 			read_receipt=cint(read_receipt),
 		)
 		log.status = "Success"
+		# Track Last Sent / Send Count on the Rule itself (only for
+		# rule-triggered sends, not manual one-off sends with no rule),
+		# and auto-disable the rule once it hits its configured max_sends.
+		if rule:
+			try:
+				rule_doc = frappe.get_doc("Nexlify Email Rule", rule)
+				rule_doc.db_set("last_sent", frappe.utils.now_datetime(), update_modified=False)
+				rule_doc.db_set("send_count", (rule_doc.send_count or 0) + 1, update_modified=False)
+				if rule_doc.max_sends and (rule_doc.send_count or 0) >= rule_doc.max_sends:
+					rule_doc.db_set("enabled", 0, update_modified=False)
+			except Exception:
+				frappe.log_error(
+					title=f"Nexlify Email Engine: Failed to update last_sent/send_count for rule '{rule}'",
+					message=frappe.get_traceback(),
+				)
 	except Exception as e:
 		frappe.log_error(title=f"Nexlify Email Engine: Failed to send email using template '{template_name}'", message=frappe.get_traceback())
 		log.status = "Failed"
@@ -351,11 +377,11 @@ def get_matching_rules(doctype, docname):
 			"extra_input_fields": extra_fields,
 			"actions": actions,
 			"overrides": {
-				"override_from": rule.override_from,
-				"override_to": rule.override_to,
-				"override_cc": rule.override_cc,
-				"override_bcc": rule.override_bcc,
-				"override_subject": rule.override_subject,
+				"override_from": rule.sender,
+				"override_to": rule.to,
+				"override_cc": rule.cc,
+				"override_bcc": rule.bcc,
+				"override_subject": rule.subject,
 			},
 		})
 
@@ -398,11 +424,11 @@ def execute_rule_actions(rule_name, doctype, docname, extra_context=None):
 				context=context,
 				rule=rule_name,
 				rule_overrides={
-				"override_from": rule.override_from,
-				"override_to": rule.override_to,
-				"override_cc": rule.override_cc,
-				"override_bcc": rule.override_bcc,
-				"override_subject": rule.override_subject,
+				"override_from": rule.sender,
+				"override_to": rule.to,
+				"override_cc": rule.cc,
+				"override_bcc": rule.bcc,
+				"override_subject": rule.subject,
 				},
 			)
 			results.append({
@@ -510,11 +536,11 @@ def check_and_run_automatic_rules(doc, method):
 						context=context,
 						rule=rule_name,
 						rule_overrides={
-				"override_from": rule.override_from,
-				"override_to": rule.override_to,
-				"override_cc": rule.override_cc,
-				"override_bcc": rule.override_bcc,
-				"override_subject": rule.override_subject,
+				"override_from": rule.sender,
+				"override_to": rule.to,
+				"override_cc": rule.cc,
+				"override_bcc": rule.bcc,
+				"override_subject": rule.subject,
 						},
 					)
 				except Exception as e:
@@ -623,6 +649,52 @@ def get_templates_for_doctype(doctype):
 
 
 @frappe.whitelist()
+@frappe.whitelist()
+def test_rule_condition(rule_name, docname):
+	"""
+	Test a Nexlify Email Rule's condition against a real, user-picked
+	document, without actually sending anything. Returns whether the
+	condition matched, and if so, a full rendered preview (from/to/cc/bcc/
+	subject/message) using the rule's own overrides and its first Send
+	Email action's template, exactly as a real automatic send would.
+	"""
+	rule = frappe.get_doc("Nexlify Email Rule", rule_name)
+
+	if not frappe.has_permission(rule.reference_doctype, "read", docname):
+		frappe.throw(frappe._("You do not have permission to read this document."), frappe.PermissionError)
+
+	doc = frappe.get_doc(rule.reference_doctype, docname)
+
+	if not _evaluate_condition(rule, doc):
+		return {"condition_met": False}
+
+	template_name = None
+	for action in rule.actions:
+		if action.action_type == "Send Email" and action.email_template:
+			template_name = action.email_template
+			break
+
+	if not template_name:
+		return {"condition_met": True, "error": "No Send Email action with a template configured on this rule."}
+
+	preview = render_preview(
+		template_name=template_name,
+		context={"doctype": rule.reference_doctype, "docname": docname},
+	)
+
+	# Apply the rule's own overrides on top, same priority order as a real send.
+	result = {
+		"condition_met": True,
+		"sender": rule.sender or preview.get("default_from"),
+		"to": rule.to or preview.get("to"),
+		"cc": rule.cc or preview.get("cc"),
+		"bcc": rule.bcc or preview.get("bcc"),
+		"subject": rule.subject or preview.get("subject"),
+		"message": preview.get("message"),
+	}
+	return result
+
+
 def get_doctypes_with_rules():
 	doctypes = frappe.get_all(
 		"Nexlify Email Rule",
@@ -736,11 +808,11 @@ def _run_periodic_rules(trigger_event):
 							context=context,
 							rule=rule_name,
 							rule_overrides={
-								"override_from": rule.override_from,
-								"override_to": rule.override_to,
-								"override_cc": rule.override_cc,
-								"override_bcc": rule.override_bcc,
-								"override_subject": rule.override_subject,
+								"override_from": rule.sender,
+								"override_to": rule.to,
+								"override_cc": rule.cc,
+								"override_bcc": rule.bcc,
+								"override_subject": rule.subject,
 							},
 						)
 					except Exception as e:
@@ -822,11 +894,11 @@ def run_date_based_email_rules():
 								context=context,
 								rule=rule_name,
 								rule_overrides={
-									"override_from": rule.override_from,
-									"override_to": rule.override_to,
-									"override_cc": rule.override_cc,
-									"override_bcc": rule.override_bcc,
-									"override_subject": rule.override_subject,
+									"override_from": rule.sender,
+									"override_to": rule.to,
+									"override_cc": rule.cc,
+									"override_bcc": rule.bcc,
+									"override_subject": rule.subject,
 								},
 							)
 						except Exception as e:
@@ -909,11 +981,11 @@ def run_cron_email_rules():
 							context=context,
 							rule=rule_name,
 							rule_overrides={
-								"override_from": rule.override_from,
-								"override_to": rule.override_to,
-								"override_cc": rule.override_cc,
-								"override_bcc": rule.override_bcc,
-								"override_subject": rule.override_subject,
+								"override_from": rule.sender,
+								"override_to": rule.to,
+								"override_cc": rule.cc,
+								"override_bcc": rule.bcc,
+								"override_subject": rule.subject,
 							},
 						)
 					except Exception as e:
@@ -1010,11 +1082,11 @@ def run_custom_interval_email_rules():
 							context=context,
 							rule=rule_name,
 							rule_overrides={
-								"override_from": rule.override_from,
-								"override_to": rule.override_to,
-								"override_cc": rule.override_cc,
-								"override_bcc": rule.override_bcc,
-								"override_subject": rule.override_subject,
+								"override_from": rule.sender,
+								"override_to": rule.to,
+								"override_cc": rule.cc,
+								"override_bcc": rule.bcc,
+								"override_subject": rule.subject,
 							},
 						)
 					except Exception as e:
@@ -1075,11 +1147,11 @@ def run_daily_email_rules():
 							context=context,
 							rule=rule_name,
 							rule_overrides={
-				"override_from": rule.override_from,
-				"override_to": rule.override_to,
-				"override_cc": rule.override_cc,
-				"override_bcc": rule.override_bcc,
-				"override_subject": rule.override_subject,
+				"override_from": rule.sender,
+				"override_to": rule.to,
+				"override_cc": rule.cc,
+				"override_bcc": rule.bcc,
+				"override_subject": rule.subject,
 							},
 						)
 					except Exception as e:

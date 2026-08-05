@@ -64,11 +64,13 @@ function show_send_dialog(frm, templates) {
 				fieldname: "send_from",
 				label: __("From"),
 				options: "",
+				reqd: 1,
 			},
 			{
 				fieldtype: "Small Text",
 				fieldname: "to",
 				label: __("To"),
+				reqd: 1,
 			},
 			{
 				fieldtype: "Small Text",

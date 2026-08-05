@@ -11,6 +11,8 @@
   "reference_doctype",
   "enabled",
   "priority",
+  "last_sent",
+  "send_count",
   "condition_section",
   "condition_type",
   "condition",
@@ -35,14 +37,16 @@
   "column_break_active_window",
   "trigger_active_to",
   "overrides_section",
-  "override_from",
-  "override_to",
+  "sender",
+  "to",
   "column_break_overrides",
-  "override_cc",
-  "override_bcc",
-  "override_subject",
+  "cc",
+  "bcc",
+  "subject",
   "actions_section",
-  "actions"
+  "actions",
+  "limits_section",
+  "max_sends"
  ],
  "fields": [
   {
@@ -73,6 +77,20 @@
    "fieldtype": "Int",
    "in_list_view": 1,
    "label": "Priority"
+  },
+  {
+   "fieldname": "last_sent",
+   "fieldtype": "Datetime",
+   "label": "Last Sent",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "send_count",
+   "fieldtype": "Int",
+   "label": "Send Count",
+   "read_only": 1,
+   "default": "0"
   },
   {
    "collapsible": 1,
@@ -229,34 +247,36 @@
    "label": "Overrides (optional \u2014 leave blank to use Template defaults)"
   },
   {
-   "fieldname": "override_from",
+   "fieldname": "sender",
    "fieldtype": "Link",
-   "label": "Override From",
-   "options": "Email Account"
+   "label": "From",
+   "options": "Email Account",
+   "reqd": 1
   },
   {
-   "fieldname": "override_to",
+   "fieldname": "to",
    "fieldtype": "Small Text",
-   "label": "Override To"
+   "label": "To",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_overrides",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "override_cc",
+   "fieldname": "cc",
    "fieldtype": "Small Text",
-   "label": "Override CC"
+   "label": "CC"
   },
   {
-   "fieldname": "override_bcc",
+   "fieldname": "bcc",
    "fieldtype": "Small Text",
-   "label": "Override BCC"
+   "label": "BCC"
   },
   {
-   "fieldname": "override_subject",
+   "fieldname": "subject",
    "fieldtype": "Data",
-   "label": "Override Subject"
+   "label": "Subject"
   },
   {
    "fieldname": "actions_section",
@@ -269,6 +289,18 @@
    "label": "Actions",
    "options": "Nexlify Email Rule Action",
    "reqd": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "limits_section",
+   "fieldtype": "Section Break",
+   "label": "Limits (optional)"
+  },
+  {
+   "fieldname": "max_sends",
+   "fieldtype": "Int",
+   "label": "Max Sends",
+   "description": "Automatically disable this rule after it has sent this many times. Leave blank for unlimited."
   }
  ],
  "grid_page_length": 50,

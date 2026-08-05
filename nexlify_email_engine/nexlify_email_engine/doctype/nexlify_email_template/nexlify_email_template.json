@@ -15,9 +15,6 @@
   "message",
   "section_break_7",
   "default_from",
-  "default_to",
-  "default_cc",
-  "default_bcc",
   "section_break_12",
   "static_attachments"
  ],
@@ -72,21 +69,6 @@
    "fieldtype": "Link",
    "label": "Default From",
    "options": "Email Account"
-  },
-  {
-   "fieldname": "default_to",
-   "fieldtype": "Small Text",
-   "label": "Default To"
-  },
-  {
-   "fieldname": "default_cc",
-   "fieldtype": "Small Text",
-   "label": "Default CC"
-  },
-  {
-   "fieldname": "default_bcc",
-   "fieldtype": "Small Text",
-   "label": "Default BCC"
   },
   {
    "fieldname": "section_break_12",
