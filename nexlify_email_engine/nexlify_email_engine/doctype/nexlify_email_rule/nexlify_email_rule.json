@@ -32,6 +32,12 @@
   "show_manual_button",
   "requires_extra_input",
   "extra_input_fields",
+  "schedule_section",
+  "send_at",
+  "timezone",
+  "column_break_schedule",
+  "weekly_day",
+  "selected_weekdays",
   "active_window_section",
   "trigger_active_from",
   "column_break_active_window",
@@ -116,7 +122,7 @@
    "collapsible": 1,
    "fieldname": "trigger_section",
    "fieldtype": "Section Break",
-   "label": "Automatic Trigger"
+   "label": "Trigger"
   },
   {
    "default": "0",
@@ -129,7 +135,7 @@
    "fieldname": "trigger_event",
    "fieldtype": "Select",
    "label": "Trigger Event",
-   "options": "\nOn Submit\nOn Status Change\nOn Save (New)\nOn Cancel\nDaily\nWeekly\nMonthly\nQuarterly\nYearly\nDays Before Date Field\nDays After Date Field\nFixed Date\nCustom Cron Expression\nCustom Interval"
+   "options": "\nOn Submit\nOn Status Change\nOn Create\nOn Every Save\nOn Update\nOn Cancel\nDaily\nWeekly\nMonthly\nQuarterly\nYearly\nDays Before Date Field\nDays After Date Field\nFixed Date\nCustom Cron Expression\nCustom Interval"
   },
   {
    "default": "status",
@@ -221,10 +227,49 @@
   },
   {
    "collapsible": 1,
+   "fieldname": "schedule_section",
+   "fieldtype": "Section Break",
+   "label": "Schedule Time",
+   "depends_on": "eval:[\"Daily\", \"Weekly\", \"Monthly\", \"Quarterly\", \"Yearly\", \"Custom Interval\", \"Custom Cron Expression\"].includes(doc.trigger_event)"
+  },
+  {
+   "fieldname": "send_at",
+   "fieldtype": "Time",
+   "label": "Send At",
+   "description": "Leave blank to run as soon as the schedule matches (any time of day)."
+  },
+  {
+   "fieldname": "timezone",
+   "fieldtype": "Select",
+   "label": "Timezone",
+   "options": "\nAsia/Riyadh\nAsia/Dubai\nAsia/Kuwait\nAsia/Qatar\nAsia/Bahrain\nAfrica/Cairo\nEurope/London\nUTC\nAsia/Kolkata\nAmerica/New_York",
+   "description": "Leave blank to use the server's default timezone."
+  },
+  {
+   "fieldname": "column_break_schedule",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.trigger_event==\"Weekly\"",
+   "fieldname": "weekly_day",
+   "fieldtype": "Select",
+   "label": "Weekly Day",
+   "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday"
+  },
+  {
+   "fieldname": "selected_weekdays",
+   "fieldtype": "MultiSelectPills",
+   "label": "Selected Days",
+   "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday",
+   "description": "Leave blank to send on any day. Pick specific days to restrict sending to only those days.",
+   "depends_on": "eval:[\"Daily\", \"Custom Interval\"].includes(doc.trigger_event)"
+  },
+  {
+   "collapsible": 1,
    "fieldname": "active_window_section",
    "fieldtype": "Section Break",
    "label": "Active Window (optional \u2014 leave blank to run indefinitely)",
-   "depends_on": "eval:[\"Daily\", \"Weekly\", \"Monthly\", \"Quarterly\", \"Yearly\", \"Custom Cron Expression\"].includes(doc.trigger_event)"
+   "depends_on": "eval:[\"Daily\", \"Weekly\", \"Monthly\", \"Quarterly\", \"Yearly\", \"Custom Interval\", \"Custom Cron Expression\"].includes(doc.trigger_event)"
   },
   {
    "fieldname": "trigger_active_from",
@@ -244,7 +289,7 @@
    "collapsible": 1,
    "fieldname": "overrides_section",
    "fieldtype": "Section Break",
-   "label": "Overrides (optional \u2014 leave blank to use Template defaults)"
+   "label": "Recipients"
   },
   {
    "fieldname": "sender",

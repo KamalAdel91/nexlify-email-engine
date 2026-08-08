@@ -148,6 +148,7 @@ app_include_js = [
 
 doc_events = {
     "*": {
+        "after_insert": "nexlify_email_engine.nexlify_email_engine.utils.check_and_run_automatic_rules",
         "on_submit": "nexlify_email_engine.nexlify_email_engine.utils.check_and_run_automatic_rules",
         "on_update": "nexlify_email_engine.nexlify_email_engine.utils.check_and_run_automatic_rules",
         "on_cancel": "nexlify_email_engine.nexlify_email_engine.utils.check_and_run_automatic_rules",
@@ -160,16 +161,13 @@ doc_events = {
 scheduler_events = {
 	"cron": {
 		"* * * * *": ["frappe.email.queue.flush"],
-		"*/5 * * * *": ["nexlify_email_engine.nexlify_email_engine.utils.run_cron_email_rules"]
+		"*/5 * * * *": [
+			"nexlify_email_engine.nexlify_email_engine.utils.run_cron_email_rules",
+			"nexlify_email_engine.nexlify_email_engine.utils.run_scheduled_periodic_rules"
+		]
 	},
 	"daily": [
 		"nexlify_email_engine.nexlify_email_engine.utils.run_daily_email_rules"
-	],
-	"weekly": [
-		"nexlify_email_engine.nexlify_email_engine.utils.run_weekly_email_rules"
-	],
-	"monthly": [
-		"nexlify_email_engine.nexlify_email_engine.utils.run_monthly_email_rules"
 	]
 }
 

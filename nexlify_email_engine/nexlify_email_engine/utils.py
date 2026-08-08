@@ -479,15 +479,38 @@ def check_and_run_automatic_rules(doc, method):
 		if trigger_event == "On Cancel" and method != "on_cancel":
 			continue
 
-		if trigger_event == "On Save (New)":
-			# Trigger on the very first save, whether that happens via on_update
-			# (normal flow) or on_submit (doctypes that auto-submit without a
-			# prior on_update event ever firing).
-			is_new_save = not doc.get_doc_before_save()
-			if method in ("on_update", "on_submit") and is_new_save:
-				pass
-			else:
+		if trigger_event == "On Create":
+			# Rely on Frappe's own after_insert hook, which fires exactly once
+			# per document creation regardless of how it was created (normal
+			# form save, API call, bulk import, etc). We previously used
+			# get_doc_before_save() to detect "new" documents, but that only
+			# gets populated during the standard form-save flow and returns
+			# None (falsely indicating "new") for documents updated through
+			# other paths, causing this trigger to misfire on real updates.
+			if method != "after_insert":
 				continue
+
+		if trigger_event == "On Every Save":
+			# Fires on every on_update, whether the document is new or an
+			# existing one being edited. No "new vs existing" distinction and
+			# deliberately NO duplicate-prevention below, since this trigger is
+			# meant to fire every time by design.
+			if method != "on_update":
+				continue
+
+		if trigger_event == "On Update":
+			# Fires only when an EXISTING document is edited — the opposite of
+			# On Create. We compare modified vs creation timestamps (reliable,
+			# stored data) rather than get_doc_before_save() (in-memory only,
+			# unreliable outside the standard form-save flow — see On Create
+			# above for the bug this caused there).
+			if method != "on_update":
+				continue
+			if doc.modified == doc.creation:
+				# This save IS the creation itself — not an update to an
+				# existing document — so skip.
+				continue
+
 
 		if trigger_event == "On Status Change":
 			trigger_field = rule.trigger_status_field or "status"
@@ -517,8 +540,8 @@ def check_and_run_automatic_rules(doc, method):
 				pass
 
 		# --- DUPLICATE PREVENTION for one-time triggers ---
-		# On Submit / On Save (New) should each only ever fire once per document.
-		if trigger_event in ("On Submit", "On Save (New)"):
+		# On Submit / On Create should each only ever fire once per document.
+		if trigger_event in ("On Submit", "On Create"):
 			if _already_sent(rule_name, doc.doctype, doc.name):
 				continue
 
@@ -753,7 +776,7 @@ def _already_sent_today(rule_name, reference_doctype, reference_name):
 def _already_sent(rule_name, reference_doctype, reference_name):
 	"""
 	Check if this rule already successfully sent an email for this document,
-	regardless of when. Used for one-time triggers (On Submit, On Save (New))
+	regardless of when. Used for one-time triggers (On Submit, On Create)
 	where a document should only ever fire the rule once.
 	"""
 	return frappe.db.exists(
@@ -765,78 +788,6 @@ def _already_sent(rule_name, reference_doctype, reference_name):
 			"status": "Success",
 		},
 	)
-
-
-def _run_periodic_rules(trigger_event):
-	"""
-	Shared logic for any simple periodic trigger (Daily, Weekly, Monthly,
-	Quarterly, Yearly). Evaluates the condition against a lightweight field
-	dict for every document of the reference doctype, and sends for matches
-	not already emailed by this rule within the relevant period.
-	"""
-	rules = frappe.get_all(
-		"Nexlify Email Rule",
-		filters={"enabled": 1, "send_automatically": 1, "trigger_event": trigger_event},
-		order_by="priority asc",
-		pluck="name",
-	)
-
-	for rule_name in rules:
-		rule = frappe.get_doc("Nexlify Email Rule", rule_name)
-
-		if not _is_within_active_window(rule):
-			continue
-
-		doc_rows = frappe.get_all(rule.reference_doctype, fields=["*"], limit_page_length=0)
-
-		for row in doc_rows:
-			doc_wrapper = frappe._dict(row)
-
-			if not _evaluate_condition(rule, doc_wrapper):
-				continue
-
-			docname = row["name"]
-
-			if _already_sent_today(rule_name, rule.reference_doctype, docname):
-				continue
-
-			context = {"doctype": rule.reference_doctype, "docname": docname}
-			for action in rule.actions:
-				if action.action_type == "Send Email" and action.email_template:
-					try:
-						send_nexlify_email(
-							template_name=action.email_template,
-							context=context,
-							rule=rule_name,
-							rule_overrides={
-								"override_from": rule.sender,
-								"override_to": rule.to,
-								"override_cc": rule.cc,
-								"override_bcc": rule.bcc,
-								"override_subject": rule.subject,
-							},
-						)
-					except Exception as e:
-						frappe.log_error(
-							title=f"Nexlify Email Engine: {trigger_event} rule '{rule_name}' action failed",
-							message=frappe.get_traceback(),
-						)
-
-
-def run_weekly_email_rules():
-	_run_periodic_rules("Weekly")
-
-
-def run_monthly_email_rules():
-	_run_periodic_rules("Monthly")
-
-	# Quarterly: only run on the first month of a fiscal quarter (Jan, Apr, Jul, Oct)
-	if frappe.utils.now_datetime().month in (1, 4, 7, 10):
-		_run_periodic_rules("Quarterly")
-
-	# Yearly: only run in January
-	if frappe.utils.now_datetime().month == 1:
-		_run_periodic_rules("Yearly")
 
 
 def run_date_based_email_rules():
@@ -905,6 +856,127 @@ def run_date_based_email_rules():
 						except Exception as e:
 							frappe.log_error(
 								title=f"Nexlify Email Engine: {trigger_event} rule '{rule_name}' action failed",
+								message=frappe.get_traceback(),
+							)
+
+
+def _get_rule_now(rule):
+	"""
+	Return the current datetime, converted to the rule's configured timezone
+	if one is set (otherwise the server's own local time, which is what
+	frappe.utils.now_datetime() already returns).
+	"""
+	now = frappe.utils.now_datetime()
+	if not rule.timezone:
+		return now
+	try:
+		import pytz
+		server_tz = pytz.timezone(frappe.utils.get_system_timezone())
+		rule_tz = pytz.timezone(rule.timezone)
+		localized = server_tz.localize(now)
+		return localized.astimezone(rule_tz).replace(tzinfo=None)
+	except Exception:
+		return now
+
+
+def _matches_schedule_time(rule):
+	"""
+	Check exclude-weekday, weekly-day, and send-at time-of-day settings for
+	any periodic rule (Daily/Weekly/Monthly/Quarterly/Yearly/Custom Interval).
+	Runs as part of a check performed every 5 minutes, so send_at is matched
+	within a 5-minute window rather than requiring an exact match.
+	"""
+	now = _get_rule_now(rule)
+	weekday_name = now.strftime("%A")
+
+	# selected_weekdays is inclusive: blank means "any day is fine", but if
+	# any days are selected, today must be one of them for the rule to fire.
+	if rule.selected_weekdays:
+		selected = [d.strip() for d in rule.selected_weekdays.split(",") if d.strip()]
+		if selected and weekday_name not in selected:
+			return False
+
+	if rule.trigger_event == "Weekly" and rule.weekly_day:
+		if weekday_name != rule.weekly_day:
+			return False
+
+	if rule.send_at:
+		send_at_today = frappe.utils.get_datetime(f"{now.strftime('%Y-%m-%d')} {rule.send_at}")
+		window_start = send_at_today
+		window_end = send_at_today + frappe.utils.timedelta(minutes=5)
+		if not (window_start <= now < window_end):
+			return False
+
+	return True
+
+
+def run_scheduled_periodic_rules():
+	"""
+	Runs every 5 minutes (via the cron scheduler event). Handles Daily,
+	Weekly, Monthly, Quarterly, Yearly, and Custom Interval triggers,
+	applying each rule's schedule_section settings (send_at, weekly_day,
+	selected_weekdays, timezone) before evaluating its condition.
+	"""
+	now = frappe.utils.now_datetime()
+
+	for trigger_event in ("Daily", "Weekly", "Monthly", "Quarterly", "Yearly", "Custom Interval"):
+		rules = frappe.get_all(
+			"Nexlify Email Rule",
+			filters={"enabled": 1, "send_automatically": 1, "trigger_event": trigger_event},
+			order_by="priority asc",
+			pluck="name",
+		)
+
+		for rule_name in rules:
+			rule = frappe.get_doc("Nexlify Email Rule", rule_name)
+
+			if not _is_within_active_window(rule):
+				continue
+
+			if not _matches_schedule_time(rule):
+				continue
+
+			if trigger_event == "Quarterly" and now.month not in (1, 4, 7, 10):
+				continue
+
+			if trigger_event == "Yearly" and now.month != 1:
+				continue
+
+			if trigger_event == "Custom Interval" and not _is_due_for_custom_interval(rule):
+				continue
+
+			doc_rows = frappe.get_all(rule.reference_doctype, fields=["*"], limit_page_length=0)
+
+			for row in doc_rows:
+				doc_wrapper = frappe._dict(row)
+
+				if not _evaluate_condition(rule, doc_wrapper):
+					continue
+
+				docname = row["name"]
+
+				if _already_sent_today(rule_name, rule.reference_doctype, docname):
+					continue
+
+				context = {"doctype": rule.reference_doctype, "docname": docname}
+				for action in rule.actions:
+					if action.action_type == "Send Email" and action.email_template:
+						try:
+							send_nexlify_email(
+								template_name=action.email_template,
+								context=context,
+								rule=rule_name,
+								rule_overrides={
+									"override_from": rule.sender,
+									"override_to": rule.to,
+									"override_cc": rule.cc,
+									"override_bcc": rule.bcc,
+									"override_subject": rule.subject,
+								},
+							)
+						except Exception as e:
+							frappe.log_error(
+								title=f"Nexlify Email Engine: {trigger_event} rule \'{rule_name}\' action failed",
 								message=frappe.get_traceback(),
 							)
 
