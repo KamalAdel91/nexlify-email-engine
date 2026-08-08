@@ -12,6 +12,7 @@
   "enabled",
   "priority",
   "last_sent",
+  "next_send",
   "send_count",
   "condition_section",
   "condition_type",
@@ -88,6 +89,13 @@
    "fieldname": "last_sent",
    "fieldtype": "Datetime",
    "label": "Last Sent",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "next_send",
+   "fieldtype": "Data",
+   "label": "Next Send",
    "read_only": 1,
    "in_list_view": 1
   },

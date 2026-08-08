@@ -33,20 +33,23 @@
    "fieldname": "reference_doctype",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Reference DocType"
+   "label": "Reference DocType",
+   "search_index": 1
   },
   {
    "fieldname": "reference_name",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Reference Name"
+   "label": "Reference Name",
+   "search_index": 1
   },
   {
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Success\nFailed"
+   "options": "Success\nFailed",
+   "search_index": 1
   },
   {
    "fieldname": "error_message",
@@ -57,7 +60,8 @@
    "fieldname": "sent_at",
    "fieldtype": "Datetime",
    "in_list_view": 1,
-   "label": "Sent At"
+   "label": "Sent At",
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
