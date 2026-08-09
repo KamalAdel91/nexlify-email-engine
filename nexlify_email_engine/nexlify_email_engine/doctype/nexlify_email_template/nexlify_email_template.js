@@ -49,9 +49,9 @@ function get_email_suggestions(txt) {
     return all_emails.filter(function (e) { return e.toLowerCase().indexOf(lower) !== -1; });
 }
 
-// --- "Select Recipients" pickers for the actual Default To/CC/BCC fields on the form ---
+// --- "Select Recipients" pickers for the actual To/CC/BCC fields on the form ---
 function setup_recipient_pickers(frm) {
-    ["default_to", "default_cc", "default_bcc"].forEach(function (fieldname) {
+    ["to", "cc", "bcc"].forEach(function (fieldname) {
         const field = frm.fields_dict[fieldname];
         if (!field || !field.$wrapper) return;
 

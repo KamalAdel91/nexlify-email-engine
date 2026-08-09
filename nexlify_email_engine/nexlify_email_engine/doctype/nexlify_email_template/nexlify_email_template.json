@@ -12,6 +12,9 @@
   "enabled",
   "section_break_4",
   "subject",
+  "to",
+  "cc",
+  "bcc",
   "message",
   "section_break_7",
   "default_from",
@@ -51,6 +54,21 @@
    "in_list_view": 1,
    "label": "Subject",
    "reqd": 1
+  },
+  {
+   "fieldname": "to",
+   "fieldtype": "Small Text",
+   "label": "To"
+  },
+  {
+   "fieldname": "cc",
+   "fieldtype": "Small Text",
+   "label": "CC"
+  },
+  {
+   "fieldname": "bcc",
+   "fieldtype": "Small Text",
+   "label": "BCC"
   },
   {
    "fieldname": "message",

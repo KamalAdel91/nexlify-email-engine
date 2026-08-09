@@ -291,9 +291,9 @@ function show_send_dialog(frm, templates) {
 			callback: function (r) {
 				if (r.exc || !r.message) return;
 				const preview = r.message;
-				d.set_value("to", preview.to || "");
-				d.set_value("cc", preview.cc || "");
-				d.set_value("bcc", preview.bcc || "");
+				if (preview.to) d.set_value("to", preview.to);
+				if (preview.cc) d.set_value("cc", preview.cc);
+				if (preview.bcc) d.set_value("bcc", preview.bcc);
 
 				["to", "cc", "bcc"].forEach(function (fn) {
 					const f = d.fields_dict[fn];

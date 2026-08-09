@@ -41,11 +41,9 @@ def render_preview(template_name, context):
 	try:
 		rendered_subject = frappe.render_template(template.subject, jinja_context) if template.subject else ""
 		rendered_message = frappe.render_template(template.message, jinja_context) if template.message else ""
-		# Templates no longer carry recipient fields — To/CC/BCC come from
-		# the Nexlify Email Rule (override fields) or manual entry only.
-		rendered_to = ""
-		rendered_cc = ""
-		rendered_bcc = ""
+		rendered_to = frappe.render_template(template.to, jinja_context) if template.to else ""
+		rendered_cc = frappe.render_template(template.cc, jinja_context) if template.cc else ""
+		rendered_bcc = frappe.render_template(template.bcc, jinja_context) if template.bcc else ""
 	except Exception as e:
 		frappe.msgprint(
 			"Could not fully render preview - no sample document was available, "
@@ -54,9 +52,9 @@ def render_preview(template_name, context):
 		)
 		rendered_subject = template.subject or ""
 		rendered_message = template.message or ""
-		rendered_to = ""
-		rendered_cc = ""
-		rendered_bcc = ""
+		rendered_to = template.to or ""
+		rendered_cc = template.cc or ""
+		rendered_bcc = template.bcc or ""
 
 	attachment_list = []
 	for row in template.static_attachments:
@@ -122,9 +120,9 @@ def send_nexlify_email(
 		template = frappe._dict({
 			"subject": "",
 			"message": "",
-			"default_to": "",
-			"default_cc": "",
-			"default_bcc": "",
+			"to": "",
+			"cc": "",
+			"bcc": "",
 			"default_from": None,
 			"static_attachments": [],
 		})
