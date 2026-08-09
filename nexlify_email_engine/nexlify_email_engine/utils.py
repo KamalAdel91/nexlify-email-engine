@@ -1097,7 +1097,15 @@ def _calculate_next_send(rule):
 		return "Varies (date/cron-based)"
 
 	now = _get_rule_now(rule)
-	send_at_str = rule.send_at.strftime("%H:%M") if rule.send_at else "00:00"
+	# rule.send_at is a Frappe Time field, which arrives as a
+	# datetime.timedelta (duration since midnight), not a datetime.time
+	# object -- it has no .strftime(), so we compute HH:MM from its
+	# total seconds directly.
+	if rule.send_at:
+		total_seconds = int(rule.send_at.total_seconds())
+		send_at_str = f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}"
+	else:
+		send_at_str = "00:00"
 
 	if rule.trigger_event == "Custom Interval":
 		if not rule.repeat_every or rule.repeat_every < 1:
