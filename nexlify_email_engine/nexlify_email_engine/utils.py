@@ -1,5 +1,6 @@
 import frappe
 import json
+from datetime import timedelta
 from frappe.utils import cint
 
 
@@ -849,7 +850,7 @@ def _matches_schedule_time(rule):
 	if rule.send_at:
 		send_at_today = frappe.utils.get_datetime(f"{now.strftime('%Y-%m-%d')} {rule.send_at}")
 		window_start = send_at_today
-		window_end = send_at_today + frappe.utils.timedelta(minutes=5)
+		window_end = send_at_today + timedelta(minutes=5)
 		if not (window_start <= now < window_end):
 			return False
 
@@ -973,7 +974,7 @@ def run_cron_email_rules():
 
 		try:
 			# Check if the cron expression would have fired within the last 5 minutes
-			iter = croniter(rule.trigger_cron_expression, now - frappe.utils.timedelta(minutes=5))
+			iter = croniter(rule.trigger_cron_expression, now - timedelta(minutes=5))
 			next_run = iter.get_next(frappe.utils.datetime.datetime)
 			if next_run > now:
 				continue
@@ -996,7 +997,7 @@ def run_cron_email_rules():
 
 			# For cron rules, dedupe within the current 5-minute window rather than
 			# a full day, since cron can legitimately fire multiple times per day.
-			recent_cutoff = now - frappe.utils.timedelta(minutes=5)
+			recent_cutoff = now - timedelta(minutes=5)
 			already_sent = frappe.db.exists(
 				"Nexlify Email Log",
 				{
