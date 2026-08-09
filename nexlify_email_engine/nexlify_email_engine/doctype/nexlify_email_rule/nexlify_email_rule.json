@@ -266,10 +266,9 @@
   },
   {
    "fieldname": "selected_weekdays",
-   "fieldtype": "MultiSelectPills",
+   "fieldtype": "Small Text",
    "label": "Selected Days",
-   "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday",
-   "description": "Leave blank to send on any day. Pick specific days to restrict sending to only those days.",
+   "description": "Comma-separated day names (e.g. Monday, Wednesday). Leave blank to send on any day.",
    "depends_on": "eval:[\"Daily\", \"Custom Interval\"].includes(doc.trigger_event)"
   },
   {
