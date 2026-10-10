@@ -278,3 +278,7 @@ scheduler_events = {
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+override_doctype_dashboards = {
+    "Nexlify Email Rule": "nexlify_email_engine.connections.nexlify_email_rule_connections",
+    "Nexlify Email Template": "nexlify_email_engine.connections.nexlify_email_template_connections",
+}
